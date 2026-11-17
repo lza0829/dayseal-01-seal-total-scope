@@ -19,6 +19,11 @@ def batches():
     return svc.list_batches()
 
 
+@router.get("/batches/{batch_id}")
+def batch(batch_id: int):
+    return svc.get_batch(batch_id)
+
+
 @router.get("/variances")
 def variances():
     return svc.list_variances()

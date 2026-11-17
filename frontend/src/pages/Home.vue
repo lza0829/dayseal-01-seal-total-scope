@@ -20,7 +20,8 @@ onMounted(async () => {
   <div class="stats" v-if="dash">
     <div class="stat"><div class="label">营业日</div><div class="value">{{ dash.business_day }}</div></div>
     <div class="stat"><div class="label">今日流水笔数</div><div class="value">{{ dash.line_count_today }}</div></div>
-    <div class="stat"><div class="label">系统合计</div><div class="value">{{ dash.system_total_today.toFixed(2) }}</div></div>
+    <div class="stat"><div class="label">系统合计（{{ dash.scope_label }}）</div><div class="value">{{ dash.system_total_today.toFixed(2) }}</div></div>
+    <div class="stat"><div class="label">其中现金</div><div class="value">{{ dash.cash_total_today.toFixed(2) }}</div></div>
     <div class="stat"><div class="label">封账状态</div><div class="value">{{ dash.sealed_today ? '已封' : '未封' }}</div></div>
   </div>
 </template>

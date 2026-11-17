@@ -1,4 +1,5 @@
 from __future__ import annotations
+import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 from fastapi import HTTPException
@@ -10,6 +11,14 @@ from app.repositories import settings as settings_repo
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _sealed_conflict(conn, action: str, exc: sqlite3.IntegrityError) -> HTTPException | None:
+    """触发器抛出的封账拦截 → 409；其他约束错误返回 None 由调用方重抛。"""
+    conn.rollback()
+    if "封账" in str(exc):
+        return HTTPException(409, f"营业日已封账，禁止{action}")
+    return None
 
 
 def list_lines(business_day: str | None = None) -> list[dict[str, Any]]:
@@ -40,8 +49,15 @@ def create_line(body: dict[str, Any]) -> dict[str, Any]:
             note=body.get("note"),
             created_at=created,
         )
+        row = line_repo.get_line(conn, lid)
         conn.commit()
-        return line_repo.get_line(conn, lid)  # type: ignore
+        return row  # type: ignore
+    except sqlite3.IntegrityError as exc:
+        conflict = _sealed_conflict(conn, "新增流水", exc)
+        if conflict:
+            raise conflict from exc
+        conn.rollback()
+        raise
     except Exception:
         conn.rollback()
         raise
@@ -64,8 +80,15 @@ def patch_line(line_id: int, body: dict[str, Any]) -> dict[str, Any]:
             pay_method=body.get("pay_method", row["pay_method"]),
             note=body.get("note", row["note"]),
         )
+        updated = line_repo.get_line(conn, line_id)
         conn.commit()
-        return line_repo.get_line(conn, line_id)  # type: ignore
+        return updated  # type: ignore
+    except sqlite3.IntegrityError as exc:
+        conflict = _sealed_conflict(conn, "修改流水", exc)
+        if conflict:
+            raise conflict from exc
+        conn.rollback()
+        raise
     except Exception:
         conn.rollback()
         raise
@@ -84,6 +107,12 @@ def remove_line(line_id: int) -> dict[str, Any]:
         line_repo.delete_line(conn, line_id)
         conn.commit()
         return {"deleted": True, "id": line_id}
+    except sqlite3.IntegrityError as exc:
+        conflict = _sealed_conflict(conn, "删除流水", exc)
+        if conflict:
+            raise conflict from exc
+        conn.rollback()
+        raise
     except Exception:
         conn.rollback()
         raise
